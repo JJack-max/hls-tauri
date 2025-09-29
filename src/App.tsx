@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import VideoPlayer from "./components/VideoPlayer";
 import FileSelector from "./components/FileSelector";
 import "./App.css";
@@ -79,6 +79,25 @@ function App() {
     setPlaylist(prev => [...prev, newVideo]);
     setCurrentVideo(newVideo);
   };
+
+  // 测试代理功能
+  useEffect(() => {
+    const testProxy = async () => {
+      try {
+        const { invoke } = await import('@tauri-apps/api/core');
+        const testUrl = 'https://example.com/test.m3u8';
+        const proxyUrl = await invoke<string>('create_proxy_url', { originalUrl: testUrl });
+        console.log('代理URL创建成功:', proxyUrl);
+      } catch (error) {
+        console.error('代理测试失败:', error);
+      }
+    };
+
+    // 只在开发环境中测试
+    if (import.meta.env.DEV) {
+      testProxy();
+    }
+  }, []);
 
   return (
     <div className="app">

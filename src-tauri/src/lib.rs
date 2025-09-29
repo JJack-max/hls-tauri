@@ -2,6 +2,8 @@ use reqwest::Client;
 use std::collections::HashMap;
 use std::sync::Mutex;
 use tauri::State;
+use tauri::http::{ResponseBuilder, header};
+use tauri::http::status::StatusCode;
 
 // 全局状态存储代理的URL映射
 type ProxyMap = Mutex<HashMap<String, String>>;
@@ -76,14 +78,21 @@ async fn fetch_video_content(url: String) -> Result<Vec<u8>, String> {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
-        .plugin(tauri_plugin_http::init())
-        .manage(ProxyMap::new(Mutex::new(HashMap::new())))
+        .manage(Mutex::new(HashMap::<String, String>::new()))
         .invoke_handler(tauri::generate_handler![
             greet,
             create_proxy_url,
             get_proxy_content,
             fetch_video_content
         ])
+        // 添加自定义端点来处理代理请求
+        .register_uri_scheme_protocol("http", move |_app, request| {
+            // 这里处理自定义协议请求
+            ResponseBuilder::new()
+                .status(StatusCode::OK)
+                .header(header::CONTENT_TYPE, "application/octet-stream")
+                .body(Vec::new())
+        })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

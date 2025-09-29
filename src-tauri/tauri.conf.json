@@ -38,10 +38,6 @@
   "plugins": {
     "opener": {
       "requireLiteralLeadingDot": false
-    },
-    "http": {
-      "all": true,
-      "request": true
     }
   }
 }

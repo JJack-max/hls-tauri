@@ -31,56 +31,49 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
   const [duration, setDuration] = useState(0);
   const [volume, setVolume] = useState(1);
   const [isMuted, setIsMuted] = useState(false);
-  const [proxyStatus, setProxyStatus] = useState<string>('');
 
-  // 测试代理功能
-  const testProxy = useCallback(async () => {
-    try {
-      const { invoke } = await import('@tauri-apps/api/core');
-      const testUrl = 'https://example.com/test.m3u8';
-      const proxyUrl = await invoke<string>('create_proxy_url', { originalUrl: testUrl });
-      setProxyStatus(`代理URL创建成功: ${proxyUrl}`);
-    } catch (error) {
-      setProxyStatus(`代理测试失败: ${error}`);
-    }
-  }, []);
-
-  // 初始化HLS播放器
-  const initializeHls = useCallback((url: string) => {
+  // 初始化HLS播放器，使用代理处理跨域问题
+  const initializeHls = useCallback(async (url: string) => {
     if (hlsRef.current) {
       hlsRef.current.destroy();
+    }
+
+    // 对于外部URL，创建代理URL
+    let finalUrl = url;
+    if (url.startsWith('http')) {
+      try {
+        const { invoke } = await import('@tauri-apps/api/core');
+        finalUrl = await invoke<string>('create_proxy_url', { originalUrl: url });
+        console.log('使用代理URL:', finalUrl);
+      } catch (error) {
+        console.error('创建代理URL失败，使用原始URL:', error);
+      }
     }
 
     if (Hls.isSupported()) {
       const hls = new Hls({
         enableWorker: true,
         lowLatencyMode: true,
-        // 配置CORS和跨域设置
-        xhrSetup: (xhr: XMLHttpRequest) => {
-          xhr.withCredentials = false;
-        },
       });
       
-      hls.loadSource(url);
+      hls.loadSource(finalUrl);
       hls.attachMedia(videoRef.current!);
       
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
         console.log('HLS manifest parsed');
       });
       
-      hls.on(Hls.Events.ERROR, (_, data) => {
+      hls.on(Hls.Events.ERROR, (event: any, data: any) => {
         console.error('HLS error:', data);
-        // 如果是网络错误，尝试通过Tauri代理
         if (data.type === 'networkError') {
-          console.log('Network error detected, trying proxy...');
-          // 这里可以添加重试逻辑
+          console.log('Network error detected when loading HLS stream');
         }
       });
       
       hlsRef.current = hls;
     } else if (videoRef.current?.canPlayType('application/vnd.apple.mpegurl')) {
       // Safari原生支持HLS
-      videoRef.current.src = url;
+      videoRef.current.src = finalUrl;
     }
   }, []);
 
@@ -95,7 +88,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
     }
 
     if (video.type === 'm3u8' || video.type === 'stream') {
-      // 对于外部视频源，使用HLS播放器
+      // 对于外部视频源，使用代理处理跨域问题
       initializeHls(video.url);
     } else {
       // 本地文件
@@ -235,14 +228,6 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
             <Plus className="btn-icon" />
             添加视频
           </button>
-          <button className="test-proxy-btn" onClick={testProxy}>
-            测试代理
-          </button>
-          {proxyStatus && (
-            <div className="proxy-status">
-              {proxyStatus}
-            </div>
-          )}
         </div>
 
         {/* 右侧视频播放区域 */}
